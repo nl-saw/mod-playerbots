@@ -4148,6 +4148,18 @@ bool PlayerbotAI::AllowActive(ActivityType activityType)
     //     }
     // }
 
+    // If configured botActiveAlone is 0 %
+    if (sPlayerbotAIConfig->botActiveAlone <= 0)
+    {
+        return false;
+    }
+
+    // If configured botActiveAlone is 100 % and botActiveAloneSmartScale completely disabled
+    if (sPlayerbotAIConfig->botActiveAlone >= 100 && !sPlayerbotAIConfig->botActiveAloneSmartScale)
+    {
+        return true;
+    }
+
     // General exceptions
     if (activityType == PACKET_ACTIVITY)
     {
@@ -4301,15 +4313,6 @@ bool PlayerbotAI::AllowActive(ActivityType activityType)
     if (activityType == DETAILED_MOVE_ACTIVITY)
     {
         return false;
-    }
-
-    if (sPlayerbotAIConfig->botActiveAlone <= 0)
-    {
-        return false;
-    }
-    if (sPlayerbotAIConfig->botActiveAlone >= 100 && !sPlayerbotAIConfig->botActiveAloneSmartScale)
-    {
-        return true;
     }
 
     // #######################################################################################
