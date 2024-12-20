@@ -4135,36 +4135,20 @@ inline bool ZoneHasRealPlayers(Player* bot)
 
 bool PlayerbotAI::AllowActive(ActivityType activityType)
 {
-    // Is in combat. Always defend yourself.
-    if (activityType != OUT_OF_PARTY_ACTIVITY && activityType != PACKET_ACTIVITY)
-    {
-        if (bot->IsInCombat())
-        {
-            return true;
-        }
-    }
-    
-    // only keep updating till initializing time has completed,
-    // which prevents unneeded expensive GameTime calls.
-    if (_isBotInitializing)
-    {
-        _isBotInitializing = GameTime::GetUptime().count() < sPlayerbotAIConfig->maxRandomBots * 0.12;
-
-        // no activity allowed during bot initialization
-        if (_isBotInitializing)
-        {
-            return false;
-        }
-    }
-
-    // General exceptions
-    if (activityType == PACKET_ACTIVITY)
+    // when botActiveAlone is 100% and smartScale disabled
+    if (sPlayerbotAIConfig->botActiveAlone >= 100 && !sPlayerbotAIConfig->botActiveAloneSmartScale)
     {
         return true;
     }
 
-    // when botActiveAlone is 100% and smartScale disabled
-    if (sPlayerbotAIConfig->botActiveAlone >= 100 && !sPlayerbotAIConfig->botActiveAloneSmartScale)
+    // Is in combat. Always defend yourself.
+    if (bot->IsInCombat())
+    {
+        return true;
+    }
+
+    // General exceptions
+    if (activityType == PACKET_ACTIVITY)
     {
         return true;
     }
@@ -4174,7 +4158,7 @@ bool PlayerbotAI::AllowActive(ActivityType activityType)
     {
         return true;
     }
-    
+
     // bot map has active players.
     if (sPlayerbotAIConfig->BotActiveAloneForceWhenInMap)
     {
