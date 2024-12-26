@@ -138,9 +138,10 @@ public:
 class CastBlessingOfKingsOnPartyAction : public CastBlessingOnPartyAction
 {
 public:
-    CastBlessingOfKingsOnPartyAction(PlayerbotAI* botAI) : CastBlessingOnPartyAction(botAI, "blessing of kings") {}
+    CastBlessingOfKingsOnPartyAction(PlayerbotAI* botAI)
+        : CastBlessingOnPartyAction(botAI, "greater blessing of kings") {}
 
-    std::string const getName() override { return "blessing of kings on party"; }
+    std::string const getName() override { return "greater blessing of kings on party"; }
 };
 
 class CastBlessingOfSanctuaryAction : public CastBuffSpellAction

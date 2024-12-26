@@ -37,7 +37,7 @@ public:
         creators["retribution aura"] = &retribution_aura;
         creators["blessing of kings"] = &blessing_of_kings;
         creators["blessing of wisdom"] = &blessing_of_wisdom;
-        creators["blessing of kings on party"] = &blessing_of_kings_on_party;
+        creators["greater blessing of kings on party"] = &blessing_of_kings_on_party;
         creators["blessing of wisdom on party"] = &blessing_of_wisdom_on_party;
         creators["blessing of sanctuary"] = &blessing_of_sanctuary;
         creators["seal of command"] = &seal_of_command;
@@ -71,7 +71,7 @@ private:
     }
     static ActionNode* blessing_of_kings_on_party(PlayerbotAI* ai)
     {
-        return new ActionNode("blessing of kings on party",
+        return new ActionNode("greater blessing of kings on party",
                               /*P*/ nullptr,
                               /*A*/ nullptr,
                               /*C*/ nullptr);

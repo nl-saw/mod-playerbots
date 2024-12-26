@@ -137,7 +137,7 @@ public:
         creators["beacon of light on main tank"] = &PaladinTriggerFactoryInternal::beacon_of_light_on_main_tank;
         creators["sacred shield on main tank"] = &PaladinTriggerFactoryInternal::sacred_shield_on_main_tank;
 
-        creators["blessing of kings on party"] = &PaladinTriggerFactoryInternal::blessing_of_kings_on_party;
+        creators["greater blessing of kings on party"] = &PaladinTriggerFactoryInternal::blessing_of_kings_on_party;
         creators["blessing of wisdom on party"] = &PaladinTriggerFactoryInternal::blessing_of_wisdom_on_party;
         creators["blessing of might on party"] = &PaladinTriggerFactoryInternal::blessing_of_might_on_party;
 
@@ -223,7 +223,7 @@ public:
         creators["blessing of kings"] = &PaladinAiObjectContextInternal::blessing_of_kings;
         creators["blessing of sanctuary"] = &PaladinAiObjectContextInternal::blessing_of_sanctuary;
         creators["divine storm"] = &PaladinAiObjectContextInternal::divine_storm;
-        creators["blessing of kings on party"] = &PaladinAiObjectContextInternal::blessing_of_kings_on_party;
+        creators["greater blessing of kings on party"] = &PaladinAiObjectContextInternal::blessing_of_kings_on_party;
         creators["blessing of might on party"] = &PaladinAiObjectContextInternal::blessing_of_might_on_party;
         creators["blessing of wisdom on party"] = &PaladinAiObjectContextInternal::blessing_of_wisdom_on_party;
         creators["redemption"] = &PaladinAiObjectContextInternal::redemption;
