@@ -840,7 +840,8 @@ void RandomPlayerbotMgr::CheckBgQueue()
         }
     }
 
-    if (sPlayerbotAIConfig->randomBotAutoJoinBG)
+    // If enabled, wait for all bots to have logged in before queueing for Arena's / BG's
+    if (sPlayerbotAIConfig->randomBotAutoJoinBG && playerBots.size() >= GetMaxAllowedBotCount())
     {
         uint32 randomBotAutoJoinArenaBracket         = sPlayerbotAIConfig->randomBotAutoJoinArenaBracket;
         uint32 randomBotAutoJoinBGRatedArena2v2Count = sPlayerbotAIConfig->randomBotAutoJoinBGRatedArena2v2Count;
@@ -860,7 +861,7 @@ void RandomPlayerbotMgr::CheckBgQueue()
         std::vector<uint32> wsBrackets = parseBrackets(sPlayerbotAIConfig->randomBotAutoJoinWSBrackets);
 
         auto updateRatedArenaInstanceCount = [&](uint32 queueType, uint32 bracket, uint32 minCount) {
-            if (BattlegroundData[queueType][bracket].activeRatedArenaQueue +
+            if (BattlegroundData[queueType][bracket].activeRatedArenaQueue == 0 &&
                 BattlegroundData[queueType][bracket].ratedArenaInstanceCount < minCount)
                 BattlegroundData[queueType][bracket].activeRatedArenaQueue = 1;
         };
@@ -868,7 +869,7 @@ void RandomPlayerbotMgr::CheckBgQueue()
         auto updateBGInstanceCount = [&](uint32 queueType, std::vector<uint32> brackets, uint32 minCount) {
             for (uint32 bracket : brackets)
             {
-                if (BattlegroundData[queueType][bracket].activeBgQueue +
+                if (BattlegroundData[queueType][bracket].activeBgQueue == 0 &&
                     BattlegroundData[queueType][bracket].bgInstanceCount < minCount)   
                     BattlegroundData[queueType][bracket].activeBgQueue = 1;
             }
