@@ -638,13 +638,18 @@ std::vector<uint32> parseBrackets(const std::string& str)
 
 void RandomPlayerbotMgr::CheckBgQueue()
 {
-    if (!BgCheckTimer)
+    if (!BgCheckTimer) {
         BgCheckTimer = time(nullptr);
+        return; // Exit immediately after initializing the timer
+    }
 
-    if (time(nullptr) < BgCheckTimer)
-        return;
+    if (time(nullptr) < BgCheckTimer) {
+        return; // No need to proceed if the current time is less than the timer
+    }
 
+    // Update the timer to the current time
     BgCheckTimer = time(nullptr);
+
     LOG_DEBUG("playerbots", "Checking BG Queue...");
 
     BattlegroundData.clear();
