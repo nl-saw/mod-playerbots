@@ -773,9 +773,6 @@ AiPlayerbot.RandomBotAutoJoinBG = 0
 
 # Required Configuration for RandomBotAutoJoinBG
 #
-# Known issue: When enabling a lot of brackats in combination with multiple instances,
-#              can lead to more instances created by bots than intended (over-queuing).
-#
 # This section controls the level brackets and 
 # automatic bot participation in battlegrounds and arenas.
 #
