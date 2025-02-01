@@ -125,6 +125,7 @@ bool CheckMountStateAction::Execute(Event event)
             if (bot->HasAura(23333) || bot->HasAura(23335))
                 return false;
         }
+
         return Mount();
     }
 
@@ -134,7 +135,7 @@ bool CheckMountStateAction::Execute(Event event)
         Dismount();
         return true;
     }
-    
+
     return false;
 }
 
