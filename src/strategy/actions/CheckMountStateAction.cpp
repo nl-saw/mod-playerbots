@@ -91,12 +91,11 @@ bool CheckMountStateAction::Execute(Event event)
     bool inBattleground = bot->InBattleground();
     if (master && !inBattleground)
     {
-        masterInShapeshiftForm = master->GetShapeshiftForm();
-
-        // Cache the group pointer to avoid multiple lookups
         Group* group = bot->GetGroup();
         if (!group || group->GetLeaderGUID() != master->GetGUID())
             return false;
+
+        masterInShapeshiftForm = master->GetShapeshiftForm();
 
         if (ShouldFollowMasterMountState(master, noAttackers, shouldMount))
             return Mount();
@@ -241,7 +240,6 @@ void CheckMountStateAction::Dismount()
 
 bool CheckMountStateAction::ShouldFollowMasterMountState(Player* master, bool noAttackers, bool shouldMount) const
 {
-    // Cache master mount state evaluation
     bool isMasterMounted = master->IsMounted() || (masterInShapeshiftForm == FORM_FLIGHT ||
                                                     masterInShapeshiftForm == FORM_FLIGHT_EPIC ||
                                                     masterInShapeshiftForm == FORM_TRAVEL);
