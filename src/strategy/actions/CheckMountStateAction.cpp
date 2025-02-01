@@ -12,6 +12,58 @@
 #include "ServerFacade.h"
 #include "SpellAuraEffects.h"
 
+// Structure to hold mount data from a single iteration over the bot's spell map.
+struct MountData
+{
+    bool swiftMount = false;
+    // Outer map: index (0 for ground, 1 for flight), inner map: effect speed -> vector of spell IDs.
+    std::map<uint32, std::map<int32, std::vector<uint32>>> allSpells;
+    // Maximum valid mount speed found (only considering spells with speed > 59)
+    int32 maxSpeed = 59;
+};
+
+MountData CollectMountData(const Player* bot)
+{
+    MountData data;
+    // Iterate once over the spell map. Finally, we won't torture your CPU as before.
+    for (auto& entry : bot->GetSpellMap())
+    {
+        uint32 spellId = entry.first;
+        SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId);
+        if (!spellInfo || spellInfo->Effects[0].ApplyAuraName != SPELL_AURA_MOUNTED)
+            continue;
+
+        if (entry.second->State == PLAYERSPELL_REMOVED || !entry.second->Active || spellInfo->IsPassive())
+            continue;
+
+        int32 effect1 = spellInfo->Effects[1].BasePoints;
+        int32 effect2 = spellInfo->Effects[2].BasePoints;
+        int32 speed = std::max(effect1, effect2);
+
+        // Check for swift mount criteria.
+        // Note: if the aura isn't the swift one, then a high speed qualifies; otherwise, we check the alternate threshold.
+        if ((speed > 59 && spellInfo->Effects[1].ApplyAuraName != SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED) ||
+            (speed > 149 && spellInfo->Effects[1].ApplyAuraName == SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED))
+        {
+            data.swiftMount = true;
+        }
+
+        // Update max speed if appropriate.
+        if (speed > data.maxSpeed)
+        {
+            // In BG, clamp max speed to 99 later; here we just store the maximum found.
+            data.maxSpeed = speed;
+        }
+
+        // Determine index: flight if either effect has flight aura or specific mount ID.
+        uint32 index = (spellInfo->Effects[1].ApplyAuraName == SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED ||
+                        spellInfo->Effects[2].ApplyAuraName == SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED ||
+                        spellInfo->Id == 54729) ? 1 : 0;
+        data.allSpells[index][speed].push_back(spellId);
+    }
+    return data;
+}
+
 bool CheckMountStateAction::Execute(Event event)
 {
     // Determine if there are no attackers
@@ -152,23 +204,19 @@ bool CheckMountStateAction::Mount()
     botAI->RemoveAura("tree of life");
 
     int32 masterSpeed = CalculateMasterMountSpeed(master);
-    bool hasSwiftMount = CheckForSwiftMount();
-
-    auto allSpells = GetAllMountSpells();
-    int32 masterMountType = GetMountType(master);
+    MountData mountData = CollectMountData(bot); // One glorious pass for all mount info.
+    bool hasSwiftMount = mountData.swiftMount;
 
     if (TryPreferredMount(master))
         return true;
 
-    // Cache the spells for the mount type
-    auto spellsIt = allSpells.find(masterMountType);
-    if (spellsIt != allSpells.end())
+    // Cache the spells for the mount type using our freshly collected data.
+    int32 masterMountType = GetMountType(master);
+    auto spellsIt = mountData.allSpells.find(masterMountType);
+    if (spellsIt != mountData.allSpells.end())
     {
         auto& spells = spellsIt->second;
-        if (hasSwiftMount)
-            FilterMountsBySpeed(spells, masterSpeed);
-
-        if (TryRandomMount(spells))
+        if (TryRandomMountFiltered(spells, masterSpeed))
             return true;
     }
 
@@ -181,8 +229,8 @@ bool CheckMountStateAction::Mount()
 
 float CheckMountStateAction::CalculateDismountDistance() const
 {
-    // Warrior bots should dismount far enough to charge (because its important for generating some initial rage),
-    // a real player would be riding toward enemy mashing the charge key but the bots wont cast charge while mounted
+    // Warrior bots should dismount far enough to charge (because it's important for generating some initial rage),
+    // a real player would be riding toward enemy mashing the charge key but the bots won't cast charge while mounted.
     bool isMelee = PlayerbotAI::IsMelee(bot);
     float dismountDistance = isMelee ? sPlayerbotAIConfig->meleeDistance + 2.0f : sPlayerbotAIConfig->spellDistance + 2.0f;
     return bot->getClass() == CLASS_WARRIOR ? std::max(18.0f, dismountDistance) : dismountDistance;
@@ -232,14 +280,13 @@ int32 CheckMountStateAction::CalculateMasterMountSpeed(Player* master) const
     if (ridingSkill <= 75 && botLevel < static_cast<int32>(sPlayerbotAIConfig->useFastGroundMountAtMinLevel))
         return 59;
 
-    // If there is a master and bot not in BG
+    // If there is a master and bot not in BG, use master's aura effects.
     if (master && !bot->InBattleground())
     {
         auto auraEffects = master->GetAuraEffectsByType(SPELL_AURA_MOUNTED);
         if (!auraEffects.empty())
         {
             SpellInfo const* masterSpell = auraEffects.front()->GetSpellInfo();
-            // Cache base points from both effects
             int32 effect1 = masterSpell->Effects[1].BasePoints;
             int32 effect2 = masterSpell->Effects[2].BasePoints;
             return std::max(effect1, effect2);
@@ -251,88 +298,16 @@ int32 CheckMountStateAction::CalculateMasterMountSpeed(Player* master) const
     }
     else
     {
-        // Bots on their own
-        for (auto itr = bot->GetSpellMap().begin(); itr != bot->GetSpellMap().end(); ++itr)
-        {
-            uint32 spellId = itr->first;
-            SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId);
-            if (!spellInfo || spellInfo->Effects[0].ApplyAuraName != SPELL_AURA_MOUNTED)
-                continue;
-
-            if (itr->second->State == PLAYERSPELL_REMOVED || !itr->second->Active || spellInfo->IsPassive())
-                continue;
-
-            int32 effect1 = spellInfo->Effects[1].BasePoints;
-            int32 effect2 = spellInfo->Effects[2].BasePoints;
-            int32 speed = std::max(effect1, effect2);
-            if (speed > 59)
-            {
-                // Ensure max speed of 99 in BG
-                if (bot->InBattleground())
-                    return (speed > 99) ? 99 : speed;
-
-                return speed;
-            }
-        }
+        // Bots on their own: use our cached mount data to avoid iterating again.
+        MountData data = CollectMountData(bot);
+        int32 speed = data.maxSpeed;
+        // Ensure max speed of 99 in BG if necessary.
+        if (bot->InBattleground() && speed > 99)
+            return 99;
+        return speed;
     }
 
     return 59;
-}
-
-bool CheckMountStateAction::CheckForSwiftMount() const
-{
-    for (auto& entry : bot->GetSpellMap())
-    {
-        uint32 spellId = entry.first;
-        SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId);
-        if (!spellInfo || spellInfo->Effects[0].ApplyAuraName != SPELL_AURA_MOUNTED)
-            continue;
-
-        if (entry.second->State == PLAYERSPELL_REMOVED || !entry.second->Active || spellInfo->IsPassive())
-            continue;
-
-        int32 effect1 = spellInfo->Effects[1].BasePoints;
-        int32 effect2 = spellInfo->Effects[2].BasePoints;
-        int32 effect = std::max(effect1, effect2);
-        if ((effect > 59 && spellInfo->Effects[1].ApplyAuraName != SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED) ||
-            (effect > 149 && spellInfo->Effects[1].ApplyAuraName == SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED))
-            return true;
-    }
-    return false;
-}
-
-std::map<uint32, std::map<int32, std::vector<uint32>>> CheckMountStateAction::GetAllMountSpells() const
-{
-    // Outer map: index (0 for ground, 1 for flight), inner map: effect speed => vector of spell IDs.
-    std::map<uint32, std::map<int32, std::vector<uint32>>> allSpells;
-    for (auto& entry : bot->GetSpellMap())
-    {
-        uint32 spellId = entry.first;
-        SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId);
-        if (!spellInfo || spellInfo->Effects[0].ApplyAuraName != SPELL_AURA_MOUNTED)
-            continue;
-
-        if (entry.second->State == PLAYERSPELL_REMOVED || !entry.second->Active || spellInfo->IsPassive())
-            continue;
-
-        int32 effect1 = spellInfo->Effects[1].BasePoints;
-        int32 effect2 = spellInfo->Effects[2].BasePoints;
-        int32 effect = std::max(effect1, effect2);
-
-        // Determine the index: flight if aura name matches or for specific mount IDs.
-        uint32 index = (spellInfo->Effects[1].ApplyAuraName == SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED ||
-                        spellInfo->Effects[2].ApplyAuraName == SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED ||
-                        // Winged Steed of the Ebon Blade
-                        // This mount is meant to autoscale from a 150% flyer
-                        // up to a 280% as you train your flying skill up.
-                        // This incorrectly gets categorised as a ground mount, force this to flyer only.
-                        // TODO: Add other scaling mounts here if they have the same issue, or adjust above
-                        // checks so that they are all correctly detected.
-                        spellInfo->Id == 54729) ? 1 : 0;
-
-        allSpells[index][effect].push_back(spellId);
-    }
-    return allSpells;
 }
 
 bool CheckMountStateAction::TryPreferredMount(Player* master) const
@@ -396,32 +371,22 @@ uint32 CheckMountStateAction::GetMountType(Player* master) const
     return 0;
 }
 
-void CheckMountStateAction::FilterMountsBySpeed(std::map<int32, std::vector<uint32>>& spells, int32 masterSpeed) const
+bool CheckMountStateAction::TryRandomMountFiltered(const std::map<int32, std::vector<uint32>>& spells, int32 masterSpeed) const
 {
-    // Instead of iterating repeatedly, iterate through each key once.
-    for (auto& pair : spells)
-    {
-        int32 currentSpeed = pair.first;
-        // For each mount candidate, if its speed is too low relative to masterSpeed, clear the candidate vector.
-        if (masterSpeed > 59 && currentSpeed < 99)
-            pair.second.clear();
-
-        if (masterSpeed > 149 && currentSpeed < 279)
-            pair.second.clear();
-    }
-}
-
-bool CheckMountStateAction::TryRandomMount(const std::map<int32, std::vector<uint32>>& spells) const
-{
-    // Iterate over each speed group. If one is non-empty, pick a random spell.
+    // Iterate over each speed group once.
     for (const auto& pair : spells)
     {
+        int32 currentSpeed = pair.first;
+        // Skip this group if its speed is too low relative to masterSpeed.
+        if ((masterSpeed > 59 && currentSpeed < 99) || (masterSpeed > 149 && currentSpeed < 279))
+            continue;
+
         const auto& ids = pair.second;
         if (!ids.empty())
         {
+            // Pick a random mount from the candidate group.
             uint32 index = urand(0, ids.size() - 1);
-            if (index < ids.size())
-                return botAI->CastSpell(ids[index], bot);
+            return botAI->CastSpell(ids[index], bot);
         }
     }
     return false;
