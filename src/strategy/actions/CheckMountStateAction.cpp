@@ -12,16 +12,6 @@
 #include "ServerFacade.h"
 #include "SpellAuraEffects.h"
 
-// Structure to hold mount data from a single iteration over the bot's spell map.
-struct MountData
-{
-    bool swiftMount = false;
-    // Outer map: index (0 for ground, 1 for flight), inner map: effect speed -> vector of spell IDs.
-    std::map<uint32, std::map<int32, std::vector<uint32>>> allSpells;
-    // Maximum valid mount speed found (only considering spells with speed > 59)
-    int32 maxSpeed = 59;
-};
-
 MountData CollectMountData(const Player* bot)
 {
     MountData data;
@@ -124,9 +114,7 @@ bool CheckMountStateAction::Execute(Event event)
     if (!master && !inBattleground)
     {
         if (!bot->IsMounted() && noAttackers && shouldMount && !bot->IsInCombat())
-        {
             return Mount();
-        }
     }
 
     // If the bot is in BG
@@ -136,9 +124,7 @@ bool CheckMountStateAction::Execute(Event event)
         if (bot->GetBattlegroundTypeId() == BATTLEGROUND_WS)
         {
             if (bot->HasAura(23333) || bot->HasAura(23335))
-            {
                 return false;
-            }
         }
         return Mount();
     }
@@ -377,7 +363,6 @@ bool CheckMountStateAction::TryRandomMountFiltered(const std::map<int32, std::ve
     for (const auto& pair : spells)
     {
         int32 currentSpeed = pair.first;
-        // Skip this group if its speed is too low relative to masterSpeed.
         if ((masterSpeed > 59 && currentSpeed < 99) || (masterSpeed > 149 && currentSpeed < 279))
             continue;
 
