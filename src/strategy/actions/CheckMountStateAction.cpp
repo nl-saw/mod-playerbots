@@ -190,7 +190,7 @@ bool CheckMountStateAction::Mount()
     botAI->RemoveAura("tree of life");
 
     int32 masterSpeed = CalculateMasterMountSpeed(master);
-    MountData mountData = CollectMountData(bot); // One glorious pass for all mount info.
+    MountData mountData = CollectMountData(bot);  // One pass for all mount info.
     bool hasSwiftMount = mountData.swiftMount;
 
     if (TryPreferredMount(master))
