@@ -81,13 +81,15 @@ AiPlayerbot.Enabled = 1
 # Enable random bot system
 AiPlayerbot.RandomBotAutologin = 1
 
-# Random bot account
-# Please ensure that RandomBotAccountCount is greater than (MaxRandomBots / 10 + AddClassAccountPoolSize)
-AiPlayerbot.RandomBotAccountCount = 200
-
 # Random bot count
 AiPlayerbot.MinRandomBots = 50
 AiPlayerbot.MaxRandomBots = 50
+
+# Random bot accounts
+# If you are not using any expansion at all, you may have to set this manually, then
+# please ensure that RandomBotAccountCount is at least greater than (MaxRandomBots / 10 + AddClassAccountPoolSize)
+# default: 0 - Automatic
+AiPlayerbot.RandomBotAccountCount = 0
 
 # Delete all random bot accounts (reset randombots)
 AiPlayerbot.DeleteRandomBotAccounts = 0
