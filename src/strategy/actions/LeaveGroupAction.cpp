@@ -81,18 +81,20 @@ bool LeaveGroupAction::Leave(Player* player)
     botAI->TellMaster("Goodbye!", PLAYERBOT_SECURITY_TALK);
 
     bool randomBot = sRandomPlayerbotMgr->IsRandomBot(bot);
+
     bool shouldStay = randomBot && bot->GetGroup() && player == bot;
+
     if (!shouldStay)
     {
         bot->RemoveFromGroup();
     }
 
-    if (randomBot)
-    {
+    //if (randomBot)
+    //{
         GET_PLAYERBOT_AI(bot)->SetMaster(nullptr);
-    }
+    //}
 
-    if (!aiMaster)
+    //if (!aiMaster)
         botAI->ResetStrategies(!randomBot);
 
     botAI->Reset();
