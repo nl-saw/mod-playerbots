@@ -1709,7 +1709,7 @@ bool PlayerbotAI::IsCaster(Player* player, bool bySpec)
     return IsRanged(player, bySpec) && player->getClass() != CLASS_HUNTER;
 }
 
-bool PlayerbotAI::IsCombo(Player* player, bool bySpec)
+bool PlayerbotAI::IsCombo(Player* player)
 {
     // int tab = AiFactory::GetPlayerSpecTab(player);
     return player->getClass() == CLASS_ROGUE ||
@@ -1726,7 +1726,6 @@ bool PlayerbotAI::IsHealAssistantOfIndex(Player* player, int index)
         return false;
     }
 
-    Group::MemberSlotList const& slots = group->GetMemberSlots();
     int counter = 0;
 
     for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
@@ -1758,7 +1757,6 @@ bool PlayerbotAI::IsRangedDpsAssistantOfIndex(Player* player, int index)
         return false;
     }
 
-    Group::MemberSlotList const& slots = group->GetMemberSlots();
     int counter = 0;
 
     for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
@@ -1804,7 +1802,6 @@ int32 PlayerbotAI::GetGroupSlotIndex(Player* player)
     {
         return -1;
     }
-    Group::MemberSlotList const& slots = group->GetMemberSlots();
     int counter = 0;
     for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
     {
@@ -1829,7 +1826,6 @@ int32 PlayerbotAI::GetRangedIndex(Player* player)
     {
         return -1;
     }
-    Group::MemberSlotList const& slots = group->GetMemberSlots();
     int counter = 0;
     for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
     {
@@ -1857,7 +1853,6 @@ int32 PlayerbotAI::GetClassIndex(Player* player, uint8 cls)
     {
         return -1;
     }
-    Group::MemberSlotList const& slots = group->GetMemberSlots();
     int counter = 0;
     for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
     {
@@ -1884,7 +1879,6 @@ int32 PlayerbotAI::GetRangedDpsIndex(Player* player)
     {
         return -1;
     }
-    Group::MemberSlotList const& slots = group->GetMemberSlots();
     int counter = 0;
     for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
     {
@@ -1912,7 +1906,6 @@ int32 PlayerbotAI::GetMeleeIndex(Player* player)
     {
         return -1;
     }
-    Group::MemberSlotList const& slots = group->GetMemberSlots();
     int counter = 0;
     for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
     {
@@ -2069,8 +2062,10 @@ bool PlayerbotAI::IsMainTank(Player* player)
     {
         return IsTank(player);
     }
+
     ObjectGuid mainTank = ObjectGuid();
     Group::MemberSlotList const& slots = group->GetMemberSlots();
+
     for (Group::member_citerator itr = slots.begin(); itr != slots.end(); ++itr)
     {
         if (itr->flags & MEMBER_FLAG_MAINTANK)
@@ -2122,7 +2117,6 @@ bool PlayerbotAI::IsAssistTankOfIndex(Player* player, int index)
     {
         return false;
     }
-    Group::MemberSlotList const& slots = group->GetMemberSlots();
     int counter = 0;
     for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
     {
@@ -2882,7 +2876,7 @@ bool PlayerbotAI::CanCastSpell(uint32 spellid, Unit* target, bool checkHasSpell,
 
     if (!itemTarget)
     {
-        bool positiveSpell = spellInfo->IsPositive();
+        // bool positiveSpell = spellInfo->IsPositive();
         // if (positiveSpell && bot->IsHostileTo(target))
         //     return false;
 
