@@ -409,8 +409,8 @@ public:
     static bool IsRanged(Player* player, bool bySpec = false);
     static bool IsMelee(Player* player, bool bySpec = false);
     static bool IsCaster(Player* player, bool bySpec = false);
-    static bool IsCombo(Player* player, bool bySpec = false);
     static bool IsRangedDps(Player* player, bool bySpec = false);
+    static bool IsCombo(Player* player);
     static bool IsMainTank(Player* player);
     static uint32 GetGroupTankNum(Player* player);
     bool IsAssistTank(Player* player);
