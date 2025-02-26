@@ -23,7 +23,7 @@ jobs:
       - name: Checkout AzerothCore
         uses: actions/checkout@v4
         with:
-          repository: 'nl-saw/azerothcore-wotlk'
+          repository: 'liyunfan1223/azerothcore-wotlk'
           ref: 'Playerbot'
       - name: Checkout Playerbot Module
         uses: actions/checkout@v4
