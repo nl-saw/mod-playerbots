@@ -7,7 +7,7 @@ on:
     branches: [ "test" ]
 
 concurrency:
-  group: ${{ github.run_id }}
+  group: "codestyle-${{ github.event.pull_request.number }}"
   cancel-in-progress: true
 
 jobs:
