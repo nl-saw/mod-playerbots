@@ -1,12 +1,13 @@
 name: windows-build
+
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "test" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "test" ]
 
 concurrency:
-  group: ${{ github.head_ref || github.run_id }}
+  group: ${{ github.run_id }}
   cancel-in-progress: true
 
 jobs:
