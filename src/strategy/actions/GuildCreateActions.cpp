@@ -8,6 +8,7 @@
 #include "ArenaTeam.h"
 #include "BudgetValues.h"
 #include "Event.h"
+#include "EquipAction.h"
 #include "GuildMgr.h"
 #include "Playerbots.h"
 #include "RandomPlayerbotFactory.h"
@@ -291,7 +292,10 @@ bool BuyTabardAction::Execute(Event event)
 {
     bool canBuy = botAI->DoSpecificAction("buy", Event("buy tabard", "Hitem:5976:"));
     if (canBuy && AI_VALUE2(uint32, "item count", chat->FormatQItem(5976)))
+    {
+        EquipAction(botAI).EquipItems({ 5976 });  // Equip Tabard upon successful purchase.
         return true;
+    }
 
     TravelTarget* oldTarget = context->GetValue<TravelTarget*>("travel target")->Get();
 
