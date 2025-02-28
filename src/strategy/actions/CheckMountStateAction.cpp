@@ -97,15 +97,16 @@ bool CheckMountStateAction::isUseful()
     // Not useful if master and bot are both in a specific form already
     if (master)
     {
-        masterInShapeshiftForm = master->GetShapeshiftForm();
         botInShapeshiftForm = bot->GetShapeshiftForm();
+        masterInShapeshiftForm = master->GetShapeshiftForm();
 
         // Note: The one check that actually matters (most) here is for FORM_TRAVEL
-        // as FORM_FLIGHT is handled later on.
+        // as FORM_FLIGHT's are handled later on
         if ((masterInShapeshiftForm == FORM_TRAVEL && botInShapeshiftForm == FORM_TRAVEL) ||
             (masterInShapeshiftForm == FORM_FLIGHT && botInShapeshiftForm == FORM_FLIGHT) ||
             (masterInShapeshiftForm == FORM_FLIGHT_EPIC && botInShapeshiftForm == FORM_FLIGHT_EPIC))
             return false;
+
     }
 
     return true;
@@ -257,6 +258,8 @@ bool CheckMountStateAction::TryForms(Player* /*master*/, int32 masterMountType, 
         (masterMountType == 1 && masterSpeed == 279)))
     {
         botAI->CastSpell(SPELL_SWIFT_FLIGHT_FORM, bot);
+        // Compensate: for some reason the speedbuff is incorrectly applied
+        bot->SetSpeed(MOVE_RUN, 3.7, true);
         return true;
     }
 
