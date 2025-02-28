@@ -249,6 +249,9 @@ bool CheckMountStateAction::TryForms(Player* /*master*/, int32 masterMountType, 
         (masterMountType == 1 && masterSpeed == 149)))
     {
         botAI->CastSpell(SPELL_FLIGHT_FORM, bot);
+
+        // Compensate speedbuff
+        bot->SetSpeed(MOVE_RUN, 2.5, false);
         return true;
     }
 
@@ -258,8 +261,9 @@ bool CheckMountStateAction::TryForms(Player* /*master*/, int32 masterMountType, 
         (masterMountType == 1 && masterSpeed == 279)))
     {
         botAI->CastSpell(SPELL_SWIFT_FLIGHT_FORM, bot);
-        // Compensate: for some reason the speedbuff is incorrectly applied
-        bot->SetSpeed(MOVE_RUN, 3.7, true);
+
+        // Compensate speedbuff
+        bot->SetSpeed(MOVE_RUN, 3.8, false);
         return true;
     }
 
