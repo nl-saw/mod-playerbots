@@ -6,17 +6,16 @@
 #include "PassLeadershipToMasterAction.h"
 
 #include "Event.h"
-#include "PlayerbotOperations.h"
 #include "Playerbots.h"
-#include "PlayerbotWorldThreadProcessor.h"
 
 bool PassLeadershipToMasterAction::Execute(Event event)
 {
     if (Player* master = GetMaster())
         if (master && master != bot && bot->GetGroup() && bot->GetGroup()->IsMember(master->GetGUID()))
         {
-            auto setLeaderOp = std::make_unique<GroupSetLeaderOperation>(bot->GetGUID(), master->GetGUID());
-            sPlayerbotWorldProcessor->QueueOperation(std::move(setLeaderOp));
+            WorldPacket p(SMSG_GROUP_SET_LEADER, 8);
+            p << master->GetGUID();
+            bot->GetSession()->HandleGroupSetLeaderOpcode(p);
 
             if (!message.empty())
                 botAI->TellMasterNoFacing(message);

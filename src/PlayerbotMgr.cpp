@@ -27,9 +27,7 @@
 #include "PlayerbotAIConfig.h"
 #include "PlayerbotDbStore.h"
 #include "PlayerbotFactory.h"
-#include "PlayerbotOperations.h"
 #include "PlayerbotSecurity.h"
-#include "PlayerbotWorldThreadProcessor.h"
 #include "Playerbots.h"
 #include "RandomPlayerbotMgr.h"
 #include "SharedDefines.h"
@@ -87,6 +85,7 @@ public:
 
 void PlayerbotHolder::AddPlayerBot(ObjectGuid playerGuid, uint32 masterAccountId)
 {
+    // bot is loading
     if (botLoading.find(playerGuid) != botLoading.end())
         return;
 
@@ -196,9 +195,7 @@ void PlayerbotHolder::HandlePlayerBotLoginCallback(PlayerbotLoginQueryHolder con
     }
 
     sRandomPlayerbotMgr->OnPlayerLogin(bot);
-
-    auto op = std::make_unique<OnBotLoginOperation>(bot->GetGUID(), this);
-    sPlayerbotWorldProcessor->QueueOperation(std::move(op));
+    OnBotLogin(bot);
 
     botLoading.erase(holder.GetGuid());
 }
@@ -319,9 +316,11 @@ void PlayerbotHolder::LogoutPlayerBot(ObjectGuid guid)
         if (!botAI)
             return;
 
-        // Queue group cleanup operation for world thread
-        auto cleanupOp = std::make_unique<BotLogoutGroupCleanupOperation>(guid);
-        sPlayerbotWorldProcessor->QueueOperation(std::move(cleanupOp));
+        Group* group = bot->GetGroup();
+        if (group && !bot->InBattleground() && !bot->InBattlegroundQueue() && botAI->HasActivePlayerMaster())
+        {
+            sPlayerbotDbStore->Save(botAI);
+        }
 
         LOG_DEBUG("playerbots", "Bot {} logging out", bot->GetName().c_str());
         bot->SaveToDB(false, false);
@@ -550,7 +549,6 @@ void PlayerbotHolder::OnBotLogin(Player* const bot)
 
     botAI->TellMaster("Hello!", PLAYERBOT_SECURITY_TALK);
 
-    // Queue group operations for world thread
     if (master && master->GetGroup() && !group)
     {
         Group* mgroup = master->GetGroup();
@@ -558,29 +556,24 @@ void PlayerbotHolder::OnBotLogin(Player* const bot)
         {
             if (!mgroup->isRaidGroup() && !mgroup->isLFGGroup() && !mgroup->isBGGroup() && !mgroup->isBFGroup())
             {
-                // Queue ConvertToRaid operation
-                auto convertOp = std::make_unique<GroupConvertToRaidOperation>(master->GetGUID());
-                sPlayerbotWorldProcessor->QueueOperation(std::move(convertOp));
+                mgroup->ConvertToRaid();
             }
             if (mgroup->isRaidGroup())
             {
-                // Queue AddMember operation
-                auto addOp = std::make_unique<GroupInviteOperation>(master->GetGUID(), bot->GetGUID());
-                sPlayerbotWorldProcessor->QueueOperation(std::move(addOp));
+                mgroup->AddMember(bot);
             }
         }
         else
         {
-            // Queue AddMember operation
-            auto addOp = std::make_unique<GroupInviteOperation>(master->GetGUID(), bot->GetGUID());
-            sPlayerbotWorldProcessor->QueueOperation(std::move(addOp));
+            mgroup->AddMember(bot);
         }
     }
     else if (master && !group)
     {
-        // Queue group creation and AddMember operation
-        auto inviteOp = std::make_unique<GroupInviteOperation>(master->GetGUID(), bot->GetGUID());
-        sPlayerbotWorldProcessor->QueueOperation(std::move(inviteOp));
+        Group* newGroup = new Group();
+        newGroup->Create(master);
+        sGroupMgr->AddGroup(newGroup);
+        newGroup->AddMember(bot);
     }
     // if (master)
     // {
