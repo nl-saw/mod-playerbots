@@ -25,7 +25,7 @@ public:
     bool isUseful() override { return false; }
 
 protected:
-    virtual void SendPacket(WorldPacket const& packet);
+    virtual void SendPacket(WorldPacket data){};
     virtual Player* GetPlayer(Event event);
     virtual bool PlayerIsValid(Player* member);
     virtual uint8 GetRankId(Player* member);
@@ -44,6 +44,7 @@ public:
     bool isUseful() override;
 
 protected:
+    void SendPacket(WorldPacket data) override;
     bool PlayerIsValid(Player* member) override;
 };
 
@@ -58,6 +59,7 @@ public:
     bool isUseful() override;
 
 protected:
+    void SendPacket(WorldPacket data) override;
     bool PlayerIsValid(Player* member) override;
 };
 
@@ -72,6 +74,7 @@ public:
     bool isUseful() override;
 
 protected:
+    void SendPacket(WorldPacket data) override;
     bool PlayerIsValid(Player* member) override;
 };
 
@@ -86,6 +89,7 @@ public:
     bool isUseful() override;
 
 protected:
+    void SendPacket(WorldPacket data) override;
     bool PlayerIsValid(Player* member) override;
 };
 

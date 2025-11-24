@@ -25,7 +25,6 @@
 #include "Metric.h"
 #include "PlayerScript.h"
 #include "PlayerbotAIConfig.h"
-#include "PlayerbotWorldThreadProcessor.h"
 #include "RandomPlayerbotMgr.h"
 #include "ScriptMgr.h"
 #include "cs_playerbots.h"
@@ -301,8 +300,7 @@ class PlayerbotsWorldScript : public WorldScript
 {
 public:
     PlayerbotsWorldScript() : WorldScript("PlayerbotsWorldScript", {
-        WORLDHOOK_ON_BEFORE_WORLD_INITIALIZED,
-        WORLDHOOK_ON_UPDATE
+        WORLDHOOK_ON_BEFORE_WORLD_INITIALIZED
     }) {}
 
     void OnBeforeWorldInitialized() override
@@ -331,13 +329,6 @@ public:
 
         LOG_INFO("server.loading", ">> Loaded playerbots config in {} ms", GetMSTimeDiffToNow(oldMSTime));
         LOG_INFO("server.loading", " ");
-        LOG_INFO("server.loading", "Playerbots World Thread Processor initialized");
-    }
-
-    void OnUpdate(uint32 diff) override
-    {
-        sPlayerbotWorldProcessor->Update(diff);
-        sRandomPlayerbotMgr->UpdateAI(diff);  // World thread only
     }
 };
 
@@ -399,7 +390,8 @@ public:
 
     void OnPlayerbotUpdate(uint32 diff) override
     {
-        sRandomPlayerbotMgr->UpdateSessions();  // Per-bot updates only
+        sRandomPlayerbotMgr->UpdateAI(diff);
+        sRandomPlayerbotMgr->UpdateSessions();
     }
 
     void OnPlayerbotUpdateSessions(Player* player) override
