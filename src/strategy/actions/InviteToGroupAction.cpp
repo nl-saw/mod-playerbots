@@ -9,9 +9,7 @@
 #include "Event.h"
 #include "GuildMgr.h"
 #include "Log.h"
-#include "PlayerbotOperations.h"
 #include "Playerbots.h"
-#include "PlayerbotWorldThreadProcessor.h"
 #include "ServerFacade.h"
 
 bool InviteToGroupAction::Invite(Player* inviter, Player* player)
@@ -29,10 +27,7 @@ bool InviteToGroupAction::Invite(Player* inviter, Player* player)
     {
         if (GET_PLAYERBOT_AI(player) && !GET_PLAYERBOT_AI(player)->IsRealPlayer())
             if (!group->isRaidGroup() && group->GetMembersCount() > 4)
-            {
-                auto convertOp = std::make_unique<GroupConvertToRaidOperation>(inviter->GetGUID());
-                sPlayerbotWorldProcessor->QueueOperation(std::move(convertOp));
-            }
+                group->ConvertToRaid();
     }
 
     WorldPacket p;
@@ -94,10 +89,7 @@ bool InviteNearbyToGroupAction::Execute(Event event)
         // When inviting the 5th member of the group convert to raid for future invites.
         if (group && botAI->GetGrouperType() > GrouperType::LEADER_5 && !group->isRaidGroup() &&
             bot->GetGroup()->GetMembersCount() > 3)
-        {
-            auto convertOp = std::make_unique<GroupConvertToRaidOperation>(bot->GetGUID());
-            sPlayerbotWorldProcessor->QueueOperation(std::move(convertOp));
-        }
+            group->ConvertToRaid();
 
         if (sPlayerbotAIConfig->inviteChat && sRandomPlayerbotMgr->IsRandomBot(bot))
         {
@@ -229,8 +221,7 @@ bool InviteGuildToGroupAction::Execute(Event event)
         if (group && botAI->GetGrouperType() > GrouperType::LEADER_5 && !group->isRaidGroup() &&
             bot->GetGroup()->GetMembersCount() > 3)
         {
-            auto convertOp = std::make_unique<GroupConvertToRaidOperation>(bot->GetGUID());
-            sPlayerbotWorldProcessor->QueueOperation(std::move(convertOp));
+            group->ConvertToRaid();
         }
 
         if (sPlayerbotAIConfig->inviteChat &&
@@ -371,10 +362,7 @@ bool LfgAction::Execute(Event event)
             if (param.empty() || param == "5" || group->isRaidGroup())
                 return false;  // Group or raid is full so stop trying.
             else
-            {
-                auto convertOp = std::make_unique<GroupConvertToRaidOperation>(requester->GetGUID());
-                sPlayerbotWorldProcessor->QueueOperation(std::move(convertOp));
-            }
+                group->ConvertToRaid();  // We want a raid but are in a group so convert and continue.
         }
 
         Group::MemberSlotList const& groupSlot = group->GetMemberSlots();
