@@ -120,7 +120,9 @@ public:
     void OnPlayerLogin(Player* player);
     void OnPlayerLoginError(uint32 bot);
     Player* GetRandomPlayer();
-    std::vector<Player*> GetPlayers() { return players; };
+    // Return by const reference: callers only read the list, and returning by value
+    // heap-copied every pointer on each call (this runs from hot AI paths).
+    std::vector<Player*> const& GetPlayers() const { return players; }
     PlayerBotMap GetAllBots() { return playerBots; };
     void InitArenaTeams();
     void PrintStats();

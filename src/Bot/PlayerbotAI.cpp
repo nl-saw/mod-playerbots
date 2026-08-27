@@ -56,6 +56,7 @@
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 
 namespace
 {
@@ -482,10 +483,14 @@ void PlayerbotAI::UpdateAIInternal([[maybe_unused]] uint32 elapsed, bool minimal
     if (!bot->GetMap())
         return; // instances are created and destroyed on demand
 
-    // kinda expensive call to make on every single updateAI, do we really need this information?
-    std::string const mapString = WorldPosition(bot).isOverworld() ? std::to_string(bot->GetMapId()) : "I";
-    PerfMonitorOperation* pmo =
-        sPerfMonitor.start(PERF_MON_TOTAL, "PlayerbotAI::UpdateAIInternal " + mapString);
+    // Only build the metric name when perf monitoring is actually enabled: start() returns
+    // nullptr otherwise, and this runs on every AI tick of every bot.
+    PerfMonitorOperation* pmo = nullptr;
+    if (sPlayerbotAIConfig.perfMonEnabled)
+    {
+        std::string const mapString = WorldPosition(bot).isOverworld() ? std::to_string(bot->GetMapId()) : "I";
+        pmo = sPerfMonitor.start(PERF_MON_TOTAL, "PlayerbotAI::UpdateAIInternal " + mapString);
+    }
 
     ExternalEventHelper helper(aiObjectContext);
 
@@ -510,7 +515,10 @@ void PlayerbotAI::UpdateAIInternal([[maybe_unused]] uint32 elapsed, bool minimal
     {
         WorldSession* botWorldSessionPtr = bot->GetSession();
         bool logout = botWorldSessionPtr->ShouldLogOut(time(nullptr));
-        if (!master || !master->GetSession()->GetPlayer())
+
+        // master is a raw pointer that may outlive the master's Player object/session,
+        // so guard every dereference (a missing session or removed player must not crash).
+        if (!master || !master->IsInWorld() || !master->GetSession() || !master->GetSession()->GetPlayer())
             logout = true;
 
         if (bot->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_RESTING) || bot->HasUnitState(UNIT_STATE_IN_FLIGHT) ||
@@ -519,7 +527,7 @@ void PlayerbotAI::UpdateAIInternal([[maybe_unused]] uint32 elapsed, bool minimal
             logout = true;
         }
 
-        if (master &&
+        if (master && master->IsInWorld() &&
             (master->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_RESTING) || master->HasUnitState(UNIT_STATE_IN_FLIGHT) ||
              (master->GetSession() &&
               master->GetSession()->HasPermission(rbac::RBAC_PERM_INSTANT_LOGOUT))))
@@ -1003,6 +1011,13 @@ void PlayerbotAI::HandleCommand(uint32 type, std::string const text, Player* fro
     if (filtered.empty())
         return;
 
+    // Security gate for all commands, including "debug": previously the debug branch ran
+    // before this check, so any player with INVITE-level access (e.g. a party member) could
+    // dump the bot's AI state via "debug values"/"strategy"/... like the master could.
+    if (!IsAllowedCommand(filtered) &&
+        (!GetSecurity()->CheckLevelFor(PLAYERBOT_SECURITY_ALLOW_ALL, type != CHAT_MSG_WHISPER, fromPlayer)))
+        return;
+
     if (filtered.substr(0, 6) == "debug ")
     {
         std::string const response = HandleRemoteCommand(filtered.substr(6));
@@ -1012,9 +1027,6 @@ void PlayerbotAI::HandleCommand(uint32 type, std::string const text, Player* fro
         fromPlayer->SendDirectMessage(&data);
         return;
     }
-    if (!IsAllowedCommand(filtered) &&
-        (!GetSecurity()->CheckLevelFor(PLAYERBOT_SECURITY_ALLOW_ALL, type != CHAT_MSG_WHISPER, fromPlayer)))
-        return;
 
     if (type == CHAT_MSG_RAID_WARNING && filtered.find(bot->GetName()) != std::string::npos &&
         filtered.find("award") == std::string::npos)
@@ -2631,14 +2643,25 @@ Player* PlayerbotAI::GetPlayer(ObjectGuid guid)
 
 uint32 GetCreatureIdForCreatureTemplateId(uint32 creatureTemplateId)
 {
+    // Cache results: this runs on the world thread, and a synchronous MySQL round trip per
+    // call would stall the whole server tick. Creature guids are persistent in the DB.
+    static std::unordered_map<uint32, uint32> guidCache;
+
+    auto cached = guidCache.find(creatureTemplateId);
+    if (cached != guidCache.end())
+        return cached->second;
+
+    uint32 guid = 0;
     QueryResult results =
         WorldDatabase.Query("SELECT guid FROM `creature` WHERE id = {} LIMIT 1;", creatureTemplateId);
     if (results)
     {
         Field* fields = results->Fetch();
-        return fields[0].Get<uint32>();
+        guid = fields[0].Get<uint32>();
     }
-    return 0;
+
+    guidCache.emplace(creatureTemplateId, guid);
+    return guid;
 }
 
 Unit* PlayerbotAI::GetUnit(CreatureData const* creatureData)
@@ -3010,7 +3033,10 @@ bool PlayerbotAI::TellMasterNoFacing(std::string const text, PlayerbotSecurityLe
     if (!IsTellAllowed(securityLevel))
         return false;
 
-    time_t lastSaid = whispers[text];
+    // Use find() instead of operator[]: the latter would insert a zeroed entry for every
+    // distinct text ever sent, growing this map without bound.
+    auto whisperIt = whispers.find(text);
+    time_t lastSaid = (whisperIt != whispers.end()) ? whisperIt->second : 0;
 
     if (!lastSaid || (time(nullptr) - lastSaid) >= sPlayerbotAIConfig.repeatDelay / 1000)
     {
@@ -3718,11 +3744,13 @@ bool PlayerbotAI::CastSpell(uint32 spellId, Unit* target, Item* itemTarget)
         }
     }
 
-    if (bot->isMoving() && spell->GetCastTime())
+    // Must happen before prepare(): once prepared, the SpellEvent added to the caster's
+    // event map owns the spell object. spell->GetCastTime() is 0 until prepare(), so use
+    // CalcCastTime on the info (the old check never fired).
+    if (bot->isMoving() && spellInfo->CalcCastTime(bot) > 0)
     {
         // bot->StopMoving();
         SetNextCheckDelay(sPlayerbotAIConfig.reactDelay);
-        spell->cancel();
         delete spell;
         return false;
     }
@@ -3921,35 +3949,29 @@ bool PlayerbotAI::CastSpell(uint32 spellId, float x, float y, float z, Item* ite
     }
     else
     {
-        return false;
-    }
-
-    if (spellInfo->Effects[0].Effect == SPELL_EFFECT_OPEN_LOCK || spellInfo->Effects[0].Effect == SPELL_EFFECT_SKINNING)
-    {
-        return false;
-    }
-
-    spell->prepare(&targets);
-
-    if (bot->isMoving() && spell->GetCastTime())
-    {
-        // bot->StopMoving();
-        SetNextCheckDelay(sPlayerbotAIConfig.reactDelay);
-        spell->cancel();
         delete spell;
         return false;
     }
 
     if (spellInfo->Effects[0].Effect == SPELL_EFFECT_OPEN_LOCK || spellInfo->Effects[0].Effect == SPELL_EFFECT_SKINNING)
     {
-        LootObject loot = *aiObjectContext->GetValue<LootObject>("loot target");
-        if (!loot.IsLootPossible(bot))
-        {
-            spell->cancel();
-            delete spell;
-            return false;
-        }
+        delete spell;
+        return false;
     }
+
+    // Must happen before prepare(): once prepared, the SpellEvent added to the caster's
+    // event map owns the spell object and deletes it when the cast finishes. Deleting it
+    // here as well would be a double free (heap corruption).
+    // Note: spell->GetCastTime() is 0 until prepare(), so use CalcCastTime on the info.
+    if (bot->isMoving() && spellInfo->CalcCastTime(bot) > 0)
+    {
+        // bot->StopMoving();
+        SetNextCheckDelay(sPlayerbotAIConfig.reactDelay);
+        delete spell;
+        return false;
+    }
+
+    spell->prepare(&targets);
 
     // WaitForSpellCast(spell);
     aiObjectContext->GetValue<LastSpellCast&>("last spell cast")->Get().Set(spellId, bot->GetGUID(), time(nullptr));
@@ -4254,21 +4276,10 @@ void PlayerbotAI::InterruptSpell()
         if (!spell)
             continue;
 
+        // The core's Unit::InterruptSpell() -> Spell::cancel() already sends both
+        // SMSG_SPELL_FAILURE and SMSG_SPELL_FAILED_OTHER to the caster's set, so no
+        // manual packets are needed here (they used to be sent twice per interrupt).
         bot->InterruptSpell((CurrentSpellTypes)type);
-
-        WorldPacket data(SMSG_SPELL_FAILURE, 8 + 1 + 4 + 1);
-        data << bot->GetPackGUID();
-        data << uint8(1);
-        data << uint32(spell->m_spellInfo->Id);
-        data << uint8(0);
-        bot->SendMessageToSet(&data, true);
-
-        data.Initialize(SMSG_SPELL_FAILED_OTHER, 8 + 1 + 4 + 1);
-        data << bot->GetPackGUID();
-        data << uint8(1);
-        data << uint32(spell->m_spellInfo->Id);
-        data << uint8(0);
-        bot->SendMessageToSet(&data, true);
 
         SpellInterrupted(spell->m_spellInfo->Id);
     }
@@ -5585,6 +5596,11 @@ Item* PlayerbotAI::FindStoneFor(Item* weapon) const
         ADAMANTITE_SHARPENING_STONE, FEL_SHARPENING_STONE,   ELEMENTAL_SHARPENING_STONE, DENSE_SHARPENING_STONE,
         SOLID_SHARPENING_STONE,      HEAVY_SHARPENING_STONE, COARSE_SHARPENING_STONE,    ROUGH_SHARPENING_STONE};
 
+    // ELEMENTAL_SHARPENING_STONE is intentionally in this list: unlike every other
+    // sharpening stone (whose imbue spells only work on swords/axes/daggers/polearms),
+    // its imbue spell ("Sharpen Weapon - Critical", +28 crit rating) also applies to
+    // maces, staves and fist weapons — so it is a valid fallback when no weightstone of
+    // this tier or better is available.
     static const std::vector<uint32_t> uPrioritizedWeightStoneIds = {
         ADAMANTITE_WEIGHTSTONE, FEL_WEIGHTSTONE,    ELEMENTAL_SHARPENING_STONE, DENSE_WEIGHTSTONE, SOLID_WEIGHTSTONE,
         HEAVY_WEIGHTSTONE,      COARSE_WEIGHTSTONE, ROUGH_WEIGHTSTONE};
@@ -6059,7 +6075,17 @@ bool PlayerbotAI::IsInRealGuild()
     return PlayerbotGuildMgr::instance().IsRealGuild(bot->GetGuildId());
 }
 
-void PlayerbotAI::QueueChatResponse(const ChatQueuedReply chatReply) { chatReplies.push_back(std::move(chatReply)); }
+void PlayerbotAI::QueueChatResponse(const ChatQueuedReply chatReply)
+{
+    // Replies are drained in UpdateAIInternal; if a bot is stuck before reaching it (e.g.
+    // repeatedly invalid state), the queue would otherwise grow without bound. Drop the
+    // oldest reply once we exceed a sane backlog.
+    constexpr std::size_t kMaxQueuedChatReplies = 64;
+    while (chatReplies.size() >= kMaxQueuedChatReplies)
+        chatReplies.pop_front();
+
+    chatReplies.push_back(std::move(chatReply));
+}
 
 bool PlayerbotAI::EqualLowercaseName(std::string s1, std::string s2)
 {
@@ -6724,7 +6750,10 @@ bool PlayerbotAI::IsHealingSpell(uint32 spellFamilyName, flag96 spellFamilyFlags
 {
     if (!spellFamilyName)
         return false;
-    flag96 healingFlags;
+
+    // Must be zero-initialized: families without a case below would otherwise read
+    // uninitialized memory in the final comparison.
+    flag96 healingFlags = {};
     switch (spellFamilyName)
     {
         case SPELLFAMILY_DRUID:
