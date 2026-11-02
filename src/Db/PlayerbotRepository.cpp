@@ -7,6 +7,7 @@
 #include "PlayerbotRepository.h"
 #include "PlayerbotsDatabase.h"
 #include "AiObjectContext.h"
+#include "PlayerbotAIConfig.h"
 
 void PlayerbotRepository::Load(PlayerbotAI* botAI)
 {
@@ -44,6 +45,11 @@ void PlayerbotRepository::Load(PlayerbotAI* botAI)
         botAI->GetAiObjectContext()->GetUntypedValue("outfit list");
 
         botAI->GetAiObjectContext()->Load(values);
+
+        // The saved lists can carry another instance's strategy or miss the current
+        // map's; reconcile here so every Load() caller is covered.
+        if (sPlayerbotAIConfig.ApplyInstanceStrategies)
+            botAI->ApplyInstanceStrategies(botAI->GetBot()->GetMapId());
     }
 }
 
