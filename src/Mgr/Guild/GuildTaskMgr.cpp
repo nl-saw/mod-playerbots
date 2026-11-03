@@ -278,8 +278,10 @@ bool GuildTaskMgr::SendAdvertisement(CharacterDatabaseTransaction& trans, uint32
     if (!leader)
         return false;
 
-    uint32 validIn;
-    GetTaskValue(owner, guildId, "activeTask", &validIn);
+    uint32 validIn = 0;
+    uint32 activeTask = GetTaskValue(owner, guildId, "activeTask", &validIn);
+    if (!activeTask)
+        return false;
 
     uint32 itemTask = GetTaskValue(owner, guildId, "itemTask");
     if (itemTask)
@@ -551,8 +553,7 @@ bool GuildTaskMgr::IsGuildTaskItem(uint32 itemId, uint32 guildId)
     return value;
 }
 
-std::map<uint32, uint32> GuildTaskMgr::GetTaskValues(uint32 owner, std::string const type,
-                                                     [[maybe_unused]] uint32* validIn /* = nullptr */)
+std::map<uint32, uint32> GuildTaskMgr::GetTaskValues(uint32 owner, std::string const type)
 {
     if (!sPlayerbotAIConfig.GuildTaskEnabled)
     {
@@ -1237,12 +1238,14 @@ bool GuildTaskMgr::CheckTaskTransfer(std::string const text, Player* ownerPlayer
 
             if (Utf8FitTo(text, wnamepart))
             {
-                uint32 validIn;
+                uint32 validIn = 0;
                 uint32 activeTask = GetTaskValue(owner, guildId, "activeTask", &validIn);
                 uint32 itemTask = GetTaskValue(owner, guildId, "itemTask");
                 uint32 killTask = GetTaskValue(owner, guildId, "killTask");
 
-                if (itemTask || killTask)
+                if (!activeTask || (!itemTask && !killTask))
+                    continue;
+
                 {
                     SetTaskValue(newOwner, guildId, "activeTask", activeTask, validIn);
                     SetTaskValue(newOwner, guildId, "advertisement", 1, 15);

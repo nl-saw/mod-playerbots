@@ -44,7 +44,7 @@ private:
     GuildTaskMgr(GuildTaskMgr&&) = delete;
     GuildTaskMgr& operator=(GuildTaskMgr&&) = delete;
 
-    std::map<uint32_t, uint32_t> GetTaskValues(uint32_t owner, std::string const type, uint32_t* validIn = nullptr);
+    std::map<uint32_t, uint32_t> GetTaskValues(uint32_t owner, std::string const type);
     uint32_t GetTaskValue(uint32_t owner, uint32_t guildId, std::string const type, uint32_t* validIn = nullptr);
     uint32_t SetTaskValue(uint32_t owner, uint32_t guildId, std::string const type, uint32_t value, uint32_t validIn);
     uint32_t CreateTask(Player* owner, uint32_t guildId);
